@@ -183,31 +183,84 @@ async function ADD(envadd) {
 
 async function nginx() {
 	const text = `
-	<!DOCTYPE html>
-	<html>
-	<head>
-	<title>Welcome to nginx!</title>
-	<style>
-		body {
-			width: 35em;
-			margin: 0 auto;
-			font-family: Tahoma, Verdana, Arial, sans-serif;
-		}
-	</style>
-	</head>
-	<body>
-	<h1>Welcome to nginx!</h1>
-	<p>If you see this page, the nginx web server is successfully installed and
-	working. Further configuration is required.</p>
-	
-	<p>For online documentation and support please refer to
-	<a href="http://nginx.org/">nginx.org</a>.<br/>
-	Commercial support is available at
-	<a href="http://nginx.com/">nginx.com</a>.</p>
-	
-	<p><em>Thank you for using nginx.</em></p>
-	</body>
-	</html>
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>您访问的内容不存在</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f8ff;
+            color: #333;
+        }
+        .container {
+            text-align: center;
+            background-color: #fff;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            font-size: 24px;
+            margin-bottom: 20px;
+        }
+        #countdown {
+            color: #ff4500;
+            font-weight: bold;
+        }
+        button {
+            background-color: #008cba;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            font-size: 16px;
+            border-radius: 5px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #005f7f;
+        }
+    </style>
+    <script type="text/javascript">
+        var countdown = 3; // 设置倒计时初始值为3秒
+        var countdownInterval;
+
+        // 启动倒计时和跳转功能
+        function startCountdown() {
+            countdownInterval = setInterval(function() {
+                document.getElementById("countdown").textContent = countdown; // 显示剩余时间
+                countdown--;
+
+                if (countdown < 0) {
+                    clearInterval(countdownInterval); // 停止计时器
+                    window.location.href = "https://www.example.com"; // 跳转到目标网址
+                }
+            }, 1000); // 每隔1秒执行一次
+        }
+
+        // 手动跳转
+        function manualRedirect() {
+            clearInterval(countdownInterval); // 停止倒计时
+            window.location.href = "https://www.example.com"; // 跳转到目标网址
+        }
+    </script>
+</head>
+<body onload="startCountdown()">
+    <div class="container">
+        <h1>您访问的内容不存在，页面将在 <span id="countdown">3</span> 秒后跳转...</h1>
+        <button onclick="manualRedirect()">立即跳转</button>
+    </div>
+</body>
+</html>
+
 	`
 	return text ;
 }
