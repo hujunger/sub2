@@ -241,7 +241,7 @@ async function nginx() {
 
                 if (countdown < 0) {
                     clearInterval(countdownInterval); // 停止计时器
-                    window.location.href = "https://cfip.nyc.mn/gonggao"; // 跳转到目标网址
+                    window.location.href = "https://t.me/eliang_privatebot"; // 跳转到目标网址
                 }
             }, 1000); // 每隔1秒执行一次
         }
@@ -249,7 +249,7 @@ async function nginx() {
         // 手动跳转
         function manualRedirect() {
             clearInterval(countdownInterval); // 停止倒计时
-            window.location.href = "https://cfip.nyc.mn/gonggao"; // 跳转到目标网址
+            window.location.href = "https://t.me/eliang_privatebot"; // 跳转到目标网址
         }
     </script>
 </head>
