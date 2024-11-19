@@ -392,7 +392,7 @@ async function getSUB(api, 追加UA, userAgentHeader) {
 			method: 'get', 
 			headers: {
 				'Accept': 'text/html,application/xhtml+xml,application/xml;',
-				'User-Agent': `${追加UA} cmliu/CF-Workers-SUB ${userAgentHeader}`
+				'User-Agent': `${追加UA} ${FileName} ${userAgentHeader}`
 			},
 			signal: controller.signal // 将AbortController的信号量添加到fetch请求中
 		}).then(response => response.ok ? response.text() : Promise.reject())));
