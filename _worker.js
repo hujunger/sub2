@@ -467,215 +467,98 @@ function isValidBase64(str) {
 	return base64Regex.test(str);
 }
 
+// 在 Worker 中绑定 KV 存储
 addEventListener('fetch', event => {
   event.respondWith(handleRequest(event.request))
 })
 
 async function handleRequest(request) {
   const url = new URL(request.url)
-
-  // 路由配置：处理订阅页面和 KV 编辑页面
-  if (url.pathname === "/kv") {
-    return await kvPage(request); // 处理 /kv 路径，显示和编辑页面
-  } else if (url.pathname === "/") {
-    return await subscriptionPage(); // 默认路径显示订阅页面
-  } else {
-    return new Response('Not Found', { status: 404 }); // 未找到的路径
-  }
-}
-
-// 处理订阅页面：展示订阅内容
-async function subscriptionPage() {
-  const env = {}; // 环境变量
-  const txt = '/ADD.txt'; // 存储路径
   
-  let content = '';
-  if (env.KV) {
-    content = await env.KV.get(txt) || ''; // 从 KV 获取内容
-  }
+  // 定义 KV 存储的路径
+  const kvPath = '/ADD.txt'
 
-  // 返回订阅页面的 HTML 内容
-  const html = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-      <title>订阅页面</title>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-          body {
-              margin: 0;
-              padding: 20px;
-              font-size: 13px;
-              font-family: Arial, sans-serif;
-          }
-          .container {
-              max-width: 800px;
-              margin: 0 auto;
-          }
-          .content {
-              padding: 10px;
-              background: #f4f4f4;
-              border-radius: 5px;
-              margin-bottom: 20px;
-              white-space: pre-wrap; /* 保留换行和空格 */
-          }
-          .edit-link {
-              color: #4CAF50;
-              text-decoration: none;
-              padding: 5px 10px;
-              border-radius: 4px;
-              background: #e7f5e7;
-              margin-top: 20px;
-              display: inline-block;
-          }
-          .edit-link:hover {
-              background: #d4e6d4;
-          }
-      </style>
-  </head>
-  <body>
-      <div class="container">
-          <h1>订阅内容</h1>
-          <div class="content">${content}</div>
-          <a href="/kv" class="edit-link">编辑订阅</a>
-      </div>
-  </body>
-  </html>
-  `;
-  
-  return new Response(html, {
-      headers: { "Content-Type": "text/html;charset=utf-8" }
-  });
-}
+  try {
+    if (request.method === 'GET') {
+      // 从 KV 存储中读取内容
+      let content = await KV.get(kvPath) || '未找到订阅内容'
 
-// 处理 /kv 路径：显示编辑页面并处理保存操作
-async function kvPage(request) {
-  const env = {}; // 环境变量
-  const txt = '/ADD.txt'; // 存储路径
-  
-  let content = '';
-  if (env.KV) {
-    content = await env.KV.get(txt) || '';
-  }
+      // 返回一个包含编辑器和保存按钮的 HTML 页面
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>订阅编辑</title>
+            <style>
+              /* 样式配置 */
+              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+              .editor-container { margin-bottom: 20px; }
+              .editor { width: 100%; height: 300px; }
+              .save-btn { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+              .save-btn:hover { background-color: #45a049; }
+              .save-status { margin-left: 10px; color: green; }
+            </style>
+        </head>
+        <body>
+            <h1>订阅内容编辑</h1>
+            <div class="editor-container">
+                <textarea class="editor" id="content">${content}</textarea>
+                <div class="save-container">
+                    <button class="save-btn" onclick="saveContent()">保存</button>
+                    <span class="save-status" id="saveStatus"></span>
+                </div>
+            </div>
+            
+            <script>
+            if (document.querySelector('.editor')) {
+                let timer;
+                const textarea = document.getElementById('content');
+                const originalContent = textarea.value;
 
-  // 如果请求为 POST 方法，保存编辑的内容
-  if (request.method === "POST") {
-    try {
-      const newContent = await request.text(); // 获取新的内容
-      if (env.KV) {
-        await env.KV.put(txt, newContent); // 保存到 KV
-      }
-      return new Response('保存成功');
-    } catch (error) {
-      console.error('保存数据时发生错误:', error);
-      return new Response('保存失败', { status: 500 });
+                function saveContent() {
+                    const newContent = textarea.value;
+                    if (newContent !== originalContent) {
+                        fetch(window.location.href, {
+                            method: 'POST',
+                            body: newContent
+                        }).then(() => {
+                            const now = new Date().toLocaleString();
+                            document.title = \`编辑已保存 \${now}\`;
+                            document.getElementById('saveStatus').textContent = \`已保存 \${now}\`;
+                        }).catch(error => {
+                            document.getElementById('saveStatus').textContent = \`保存失败: \${error.message}\`;
+                        });
+                    }
+                }
+
+                // 定时保存内容
+                textarea.addEventListener('input', () => {
+                    clearTimeout(timer);
+                    timer = setTimeout(saveContent, 5000);
+                });
+            }
+            </script>
+        </body>
+        </html>
+      `
+      return new Response(html, {
+        headers: { "Content-Type": "text/html;charset=utf-8" }
+      })
+    } else if (request.method === 'POST') {
+      // 保存提交的数据到 KV 存储
+      const newContent = await request.text()
+      await KV.put(kvPath, newContent)
+      
+      // 返回成功的响应
+      return new Response('保存成功', {
+        headers: { "Content-Type": "text/plain;charset=utf-8" }
+      })
     }
+  } catch (error) {
+    console.error('处理请求时发生错误:', error)
+    return new Response("服务器错误: " + error.message, { 
+      status: 500,
+      headers: { "Content-Type": "text/plain;charset=utf-8" }
+    })
   }
-
-  // 返回编辑页面的 HTML 内容
-  const html = `
-  <!DOCTYPE html>
-  <html>
-  <head>
-      <title>编辑订阅</title>
-      <meta charset="utf-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <style>
-          body {
-              margin: 0;
-              padding: 20px;
-              font-size: 13px;
-              font-family: Arial, sans-serif;
-          }
-          .editor-container {
-              width: 100%;
-              margin: 0 auto;
-          }
-          .editor {
-              width: 100%;
-              height: 420px;
-              margin: 20px 0;
-              padding: 15px;
-              border: 1px solid #ccc;
-              border-radius: 4px;
-              font-size: 13px;
-              line-height: 1.5;
-              overflow-y: auto;
-              resize: none;
-          }
-          .save-container {
-              margin-top: 10px;
-              display: flex;
-              align-items: center;
-          }
-          .save-btn {
-              padding: 8px 20px;
-              color: white;
-              border: none;
-              border-radius: 4px;
-              cursor: pointer;
-              background: #4CAF50;
-          }
-          .save-btn:hover {
-              background: #45a049;
-          }
-          .save-status {
-              color: #666;
-          }
-      </style>
-  </head>
-  <body>
-      <h1>编辑订阅内容</h1>
-      <div class="editor-container">
-          ${env.KV ? `
-          <textarea class="editor" id="content">${content}</textarea>
-          <div class="save-container">
-              <button class="save-btn" onclick="saveContent()">保存</button>
-              <span class="save-status" id="saveStatus"></span>
-          </div>
-          ` : '<p>未绑定KV空间</p>'}
-      </div>
-      <script>
-          if (document.querySelector('.editor')) {
-              let timer;
-              const textarea = document.getElementById('content');
-              const originalContent = textarea.value;
-
-              function replaceFullwidthColon() {
-                  const text = textarea.value;
-                  textarea.value = text.replace(/：/g, ':');
-              }
-
-              function saveContent() {
-                  replaceFullwidthColon();
-                  const newContent = textarea.value;
-                  if (newContent !== originalContent) {
-                      fetch(window.location.href, {
-                          method: 'POST',
-                          body: newContent
-                      }).then(() => {
-                          const now = new Date().toLocaleString();
-                          document.title = \`编辑已保存 \${now}\`;
-                          document.getElementById('saveStatus').textContent = \`已保存 \${now}\`;
-                      }).catch(error => {
-                          document.getElementById('saveStatus').textContent = \`保存失败: \${error.message}\`;
-                      });
-                  }
-              }
-
-              textarea.addEventListener('blur', saveContent);
-              textarea.addEventListener('input', () => {
-                  clearTimeout(timer);
-                  timer = setTimeout(saveContent, 5000);
-              });
-          }
-      </script>
-  </body>
-  </html>
-  `;
-  
-  return new Response(html, {
-      headers: { "Content-Type": "text/html;charset=utf-8" }
-  });
 }
