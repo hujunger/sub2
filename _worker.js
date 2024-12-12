@@ -467,98 +467,200 @@ function isValidBase64(str) {
 	return base64Regex.test(str);
 }
 
-// 在 Worker 中绑定 KV 存储
-addEventListener('fetch', event => {
-  event.respondWith(handleRequest(event.request))
-})
+async function KV(request, env, txt = '/ADD.txt') {
+	const url = new URL(request.url);
+	try {
+		// POST请求处理
+		if (request.method === "POST") {
+			if (!env.KV) return new Response("未绑定KV空间", { status: 400 });
+			try {
+				const content = await request.text();
+				await env.KV.put(txt, content);
+				return new Response("保存成功");
+			} catch (error) {
+				console.error('保存KV时发生错误:', error);
+				return new Response("保存失败: " + error.message, { status: 500 });
+			}
+		}
+		
+		// GET请求部分
+		let content = '';
+		let hasKV = !!env.KV;
+		
+		if (hasKV) {
+			try {
+				content = await env.KV.get(txt) || '';
+			} catch (error) {
+				console.error('读取KV时发生错误:', error);
+				content = '读取数据时发生错误: ' + error.message;
+			}
+		}
+		
+		const html = `
+		<!DOCTYPE html>
+		<html>
+		<head>
+			<title>${FileName} 订阅编辑</title>
+			<meta charset="utf-8">
+			<meta name="viewport" content="width=device-width, initial-scale=1">
+			<style>
+				body {
+					margin: 0;
+					padding: 20px;
+					box-sizing: border-box;
+					font-size: 13px; /* 设置全局字体大小 */
+				}
+				.editor-container {
+					width: 100%;
+					max-width: 100%;
+					margin: 0 auto;
+				}
+				.editor {
+					width: 100%;
+					height: 420px;
+					margin: 20px 0;
+					padding: 15px;
+					box-sizing: border-box;
+					border: 1px solid #ccc;
+					border-radius: 4px;
+					font-size: 13px;
+					line-height: 1.5;
+					overflow-y: auto;
+					resize: none;
+				}
+				.save-container {
+					margin-top: 10px;
+					display: flex;
+					align-items: center;
+					gap: 15px;
+				}
+				.save-btn, .back-btn {
+					padding: 8px 20px;
+					color: white;
+					border: none;
+					border-radius: 4px;
+					cursor: pointer;
+				}
+				.save-btn {
+					background: #4CAF50;
+				}
+				.save-btn:hover {
+					background: #45a049;
+				}
+				.back-btn {
+					background: #666;
+				}
+				.back-btn:hover {
+					background: #555;
+				}
+				.save-status {
+					color: #666;
+				}
+			</style>
+		</head>
+		<body>
+			################################################################<br>
+			Subscribe / sub 订阅地址, 支持 Base64、clash-meta、sing-box 订阅格式<br>
+			---------------------------------------------------------------<br>
+			自适应订阅地址:<br>
+			<a href="javascript:void(0)" onclick="copyToClipboard('https://${url.hostname}/${mytoken}')" style="color:blue;text-decoration:underline;cursor:pointer;">https://${url.hostname}/${mytoken}</a><br>
+			<br>
+			Base64订阅地址:<br>
+			<a href="javascript:void(0)" onclick="copyToClipboard('https://${url.hostname}/${mytoken}?b64')" style="color:blue;text-decoration:underline;cursor:pointer;">https://${url.hostname}/${mytoken}?b64</a><br>
+			<br>
+			clash订阅地址:<br>
+			<a href="javascript:void(0)" onclick="copyToClipboard('https://${url.hostname}/${mytoken}?clash')" style="color:blue;text-decoration:underline;cursor:pointer;">https://${url.hostname}/${mytoken}?clash</a><br>
+			<br>
+			singbox订阅地址:<br>
+			<a href="javascript:void(0)" onclick="copyToClipboard('https://${url.hostname}/${mytoken}?sb')" style="color:blue;text-decoration:underline;cursor:pointer;">https://${url.hostname}/${mytoken}?sb</a><br>
+			<br>
+			surge订阅地址:<br>
+			<a href="javascript:void(0)" onclick="copyToClipboard('https://${url.hostname}/${mytoken}?surge')" style="color:blue;text-decoration:underline;cursor:pointer;">https://${url.hostname}/${mytoken}?surge</a><br>
+			<br>
+			loon订阅地址:<br>
+			<a href="javascript:void(0)" onclick="copyToClipboard('https://${url.hostname}/${mytoken}?loon')" style="color:blue;text-decoration:underline;cursor:pointer;">https://${url.hostname}/${mytoken}?loon</a><br>
+			<script>
+			function copyToClipboard(text) {
+				navigator.clipboard.writeText(text).then(() => {
+					alert('已复制到剪贴板');
+				}).catch(err => {
+					console.error('复制失败:', err);
+				});
+			}
+			</script>
+			---------------------------------------------------------------<br>
+			################################################################<br>
+			<br>
+			${FileName} 汇聚订阅编辑: 
+			<div class="editor-container">
+				${hasKV ? `
+				<textarea class="editor" 
+					placeholder="${decodeURIComponent(atob('TElOSyVFNyVBNCVCQSVFNCVCRSU4QiVFRiVCQyU5QQp2bGVzcyUzQSUyRiUyRmI3YTM5MmUyLTRlZjAtNDQ5Ni05MGJjLTFjMzdiYjIzNDkwNCU0MGNmLjA5MDIyNy54eXolM0E0NDMlM0ZlbmNyeXB0aW9uJTNEbm9uZSUyNnNlY3VyaXR5JTNEdGxzJTI2c25pJTNEZWRnZXR1bm5lbC0yejIucGFnZXMuZGV2JTI2ZnAlM0RyYW5kb20lMjZ0eXBlJTNEd3MlMjZob3N0JTNEZWRnZXR1bm5lbC0yejIucGFnZXMuZGV2JTI2cGF0aCUzRCUyNTJGJTI1M0ZlZCUyNTNEMjA0OCUyMyUyNUU1JTI1OEElMjVBMCUyNUU1JTI1ODUlMjVBNSUyNUU2JTI1ODglMjU5MSUyNUU3JTI1OUElMjU4NCUyNUU5JTI1QTIlMjU5MSUyNUU5JTI1ODElMjU5M3QubWUlMjUyRkNNTGl1c3NzcyUyNUU4JTI1QTclMjVBMyUyNUU5JTI1OTQlMjU4MSUyNUU2JTI1OUIlMjVCNCUyNUU1JTI1QTQlMjU5QSUyNUU0JTI1QkMlMjU5OCUyNUU5JTI1ODAlMjU4OSUyNUU4JTI1OEElMjU4MiUyNUU3JTI1ODIlMjVCOQp0cm9qYW4lM0ElMkYlMkZDTUxpdXNzc3MlNDAxOTguNjIuNjIuNTIlM0E0NDMlM0ZzZWN1cml0eSUzRHRscyUyNnNuaSUzRHhuLS1paHFyNmZyeThhdnBkbjc5YmV0Yy54bi0tY20tbms3YzAyNWE5dXVhMjYzNWNlc3UudXMua2clMjZhbHBuJTNEaHR0cCUyNTJGMS4xJTI2ZnAlM0RyYW5kb21pemVkJTI2YWxsb3dJbnNlY3VyZSUzRDElMjZ0eXBlJTNEd3MlMjZob3N0JTNEeG4tLWlocXI2ZnJ5OGF2cGRuNzliZXRjLnhuLS1jbS1uazdjMDI1YTl1dWEyNjM1Y2VzdS51cy5rZyUyNnBhdGglM0QlMjUyRiUyNTNGZWQlMjUzRDI1NjAlMjNVUwpzcyUzQSUyRiUyRllXVnpMVEkxTmkxalptSTZZVzFoZW05dWMydHlNRFUlMjUzRCU0MDEzLjI1MC4xMTAuNTYlM0E0NDMlMjNTRwoKJUU2JUIzJUE4JUU2JTg0JThGJUVGJUJDJTlBJUU0JUI4JTgwJUU4JUExJThDJUU0JUI4JTgwJUU0JUI4JUFBJUU4JThBJTgyJUU3JTgyJUI5JUU5JTkzJUJFJUU2JThFJUE1JUU1JThEJUIzJUU1JThGJUFGCgoKJUU4JUFFJUEyJUU5JTk4JTg1JUU5JTkzJUJFJUU2JThFJUE1JUU3JUE0JUJBJUU0JUJFJThCJUVGJUJDJTlBCmh0dHBzJTNBJTJGJTJGc3ViLnhmLmZyZWUuaHIlMkZhdXRvCgolRTYlQjMlQTglRTYlODQlOEYlRUYlQkMlOUElRTQlQjglODAlRTglQTElOEMlRTQlQjglODAlRTYlOUQlQTElRTglQUUlQTIlRTklOTglODUlRTklOTMlQkUlRTYlOEUlQTUlRTUlOEQlQjMlRTUlOEYlQUY='))}"
+					id="content">${content}</textarea>
+				<div class="save-container">
+					<!-- <button class="back-btn" onclick="goBack()">返回配置页</button> -->
+					<button class="save-btn" onclick="saveContent()">保存</button>
+					<span class="save-status" id="saveStatus"></span>
+				</div>
+				` : '<p>未绑定KV空间</p>'}
+			</div>
+			<br>
+			################################################################<br>
+			${decodeURIComponent(atob('dGVsZWdyYW0lMjAlRTQlQkElQTQlRTYlQjUlODElRTclQkUlQTQlMjAlRTYlOEElODAlRTYlOUMlQUYlRTUlQTQlQTclRTQlQkQlQUMlN0UlRTUlOUMlQTglRTclQkElQkYlRTUlOEYlOTElRTclODklOEMhJTNDYnIlM0UKJTNDYSUyMGhyZWYlM0QlMjdodHRwcyUzQSUyRiUyRnQubWUlMkZDTUxpdXNzc3MlMjclM0VodHRwcyUzQSUyRiUyRnQubWUlMkZDTUxpdXNzc3MlM0MlMkZhJTNFJTNDYnIlM0UKLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tJTNDYnIlM0UKZ2l0aHViJTIwJUU5JUExJUI5JUU3JTlCJUFFJUU1JTlDJUIwJUU1JTlEJTgwJTIwU3RhciFTdGFyIVN0YXIhISElM0NiciUzRQolM0NhJTIwaHJlZiUzRCUyN2h0dHBzJTNBJTJGJTJGZ2l0aHViLmNvbSUyRmNtbGl1JTJGQ0YtV29ya2Vycy1TVUIlMjclM0VodHRwcyUzQSUyRiUyRmdpdGh1Yi5jb20lMkZjbWxpdSUyRkNGLVdvcmtlcnMtU1VCJTNDJTJGYSUzRSUzQ2JyJTNFCi0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLS0tLSUzQ2JyJTNFCiUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMyUyMw=='))}
+			
+			<script>
+			if (document.querySelector('.editor')) {
+				let timer;
+				const textarea = document.getElementById('content');
+				const originalContent = textarea.value;
 
-async function handleRequest(request) {
-  const url = new URL(request.url)
-  
-  // 定义 KV 存储的路径
-  const kvPath = '/ADD.txt'
+				function goBack() {
+					const currentUrl = window.location.href;
+					const parentUrl = currentUrl.substring(0, currentUrl.lastIndexOf('/'));
+					window.location.href = parentUrl;
+				}
 
-  try {
-    if (request.method === 'GET') {
-      // 从 KV 存储中读取内容
-      let content = await KV.get(kvPath) || '未找到订阅内容'
+				function replaceFullwidthColon() {
+					const text = textarea.value;
+					textarea.value = text.replace(/：/g, ':');
+				}
+				
+				function saveContent() {
+					replaceFullwidthColon();
+					const newContent = textarea.value;
+					if (newContent !== originalContent) {
+						fetch(window.location.href, {
+							method: 'POST',
+							body: newContent
+						}).then(() => {
+							const now = new Date().toLocaleString();
+							document.title = \`编辑已保存 \${now}\`;
+							document.getElementById('saveStatus').textContent = \`已保存 \${now}\`;
+						}).catch(error => {
+							document.getElementById('saveStatus').textContent = \`保存失败: \${error.message}\`;
+						});
+					}
+				}
 
-      // 返回一个包含编辑器和保存按钮的 HTML 页面
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <title>订阅编辑</title>
-            <style>
-              /* 样式配置 */
-              body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-              .editor-container { margin-bottom: 20px; }
-              .editor { width: 100%; height: 300px; }
-              .save-btn { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
-              .save-btn:hover { background-color: #45a049; }
-              .save-status { margin-left: 10px; color: green; }
-            </style>
-        </head>
-        <body>
-            <h1>订阅内容编辑</h1>
-            <div class="editor-container">
-                <textarea class="editor" id="content">${content}</textarea>
-                <div class="save-container">
-                    <button class="save-btn" onclick="saveContent()">保存</button>
-                    <span class="save-status" id="saveStatus"></span>
-                </div>
-            </div>
-            
-            <script>
-            if (document.querySelector('.editor')) {
-                let timer;
-                const textarea = document.getElementById('content');
-                const originalContent = textarea.value;
-
-                function saveContent() {
-                    const newContent = textarea.value;
-                    if (newContent !== originalContent) {
-                        fetch(window.location.href, {
-                            method: 'POST',
-                            body: newContent
-                        }).then(() => {
-                            const now = new Date().toLocaleString();
-                            document.title = \`编辑已保存 \${now}\`;
-                            document.getElementById('saveStatus').textContent = \`已保存 \${now}\`;
-                        }).catch(error => {
-                            document.getElementById('saveStatus').textContent = \`保存失败: \${error.message}\`;
-                        });
-                    }
-                }
-
-                // 定时保存内容
-                textarea.addEventListener('input', () => {
-                    clearTimeout(timer);
-                    timer = setTimeout(saveContent, 5000);
-                });
-            }
-            </script>
-        </body>
-        </html>
-      `
-      return new Response(html, {
-        headers: { "Content-Type": "text/html;charset=utf-8" }
-      })
-    } else if (request.method === 'POST') {
-      // 保存提交的数据到 KV 存储
-      const newContent = await request.text()
-      await KV.put(kvPath, newContent)
-      
-      // 返回成功的响应
-      return new Response('保存成功', {
-        headers: { "Content-Type": "text/plain;charset=utf-8" }
-      })
-    }
-  } catch (error) {
-    console.error('处理请求时发生错误:', error)
-    return new Response("服务器错误: " + error.message, { 
-      status: 500,
-      headers: { "Content-Type": "text/plain;charset=utf-8" }
-    })
-  }
+				textarea.addEventListener('blur', saveContent);
+				textarea.addEventListener('input', () => {
+					clearTimeout(timer);
+					timer = setTimeout(saveContent, 5000);
+				});
+			}
+			</script>
+		</body>
+		</html>
+		`;
+		
+		return new Response(html, {
+			headers: { "Content-Type": "text/html;charset=utf-8" }
+		});
+	} catch (error) {
+		console.error('处理请求时发生错误:', error);
+		return new Response("服务器错误: " + error.message, { 
+			status: 500,
+			headers: { "Content-Type": "text/plain;charset=utf-8" }
+		});
+	}
 }
